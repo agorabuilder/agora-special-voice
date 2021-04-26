@@ -36,6 +36,6 @@ publish {
     userOrg = 'agora'
     groupId = 'io.agora.rtc'
     artifactId = 'agora-special-voice'
-    publishVersion = '3.2.1.211'
+    publishVersion = '3.3.2.1'
     desc = 'Agora IO'
 }
