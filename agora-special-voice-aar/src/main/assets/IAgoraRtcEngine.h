@@ -7931,7 +7931,7 @@ class IRtcEngine {
    */
   virtual int enableLoopbackRecording(bool enabled, const char* deviceName = NULL) = 0;
 
-#if (defined(__APPLE__) && TARGET_OS_MAC && !TARGET_OS_IPHONE)
+#if ((defined(__APPLE__) && TARGET_OS_MAC && !TARGET_OS_IPHONE)) || defined(_WIN32)
   /** Shares the whole or part of a screen by specifying the display ID.
    *
    * @note
