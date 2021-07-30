@@ -3388,6 +3388,66 @@ enum ENCRYPTION_CONFIG {
    */
   ENCRYPTION_FORCE_DISABLE_PACKET = (1 << 1)
 };
+
+typedef int ContentInspectType;
+/**
+ * (Default) content inspect type invalid
+ */
+const ContentInspectType kContentInspectInvalid = 0;
+/**
+ * Content inspect type moderation
+ */
+const ContentInspectType kContentInspectModeration = 1;
+/**
+ * Content inspect type supervise
+ */
+const ContentInspectType kContentInspectSupervise = 2;
+
+enum MAX_CONTENT_INSPECT_MODULE_TYPE {
+  /** The maximum count of content inspect feature type is 32.
+   */
+  MAX_CONTENT_INSPECT_MODULE_COUNT = 32
+};
+/** Definition of ContentInspectModule.
+ */
+struct ContentInspectModule {
+  /**
+   * The content inspect module type.
+   * the module type can be 0 to 31.
+   * kContentInspectInvalid(0)
+   * kContentInspectModeration(1)
+   * kContentInspectSupervise(2)
+   */
+  ContentInspectType type;
+  /**The content inspect frequency, default is 0 second.
+   * the frequency <= 0 is invalid.
+   */
+  int frequency;
+  /**The content inspect default value.
+   */
+  ContentInspectModule() {
+    type = kContentInspectInvalid;
+    frequency = 0;
+  }
+};
+/** Definition of ContentInspectConfig.
+ */
+struct ContentInspectConfig {
+  /** The extra information, max lenght of extraInfo is 1024.
+   *  The extra information will send to server with content(image).
+   */
+  const char* extraInfo;
+  /**The content inspect modules, max length of modules is 32.
+   * the content(snapshot of send video stream, image) can be used to max of 32 types functions.
+   */
+  ContentInspectModule modules[MAX_CONTENT_INSPECT_MODULE_COUNT];
+  /**The content inspect module count.
+   */
+  int moduleCount;
+
+  ContentInspectConfig() : extraInfo(NULL), moduleCount(0) {}
+};
+
 /** Definition of IPacketObserver.
  */
 class IPacketObserver {
@@ -5423,6 +5483,24 @@ class IMetadataObserver {
    @param metadata The received Metadata.
    */
   virtual void onMetadataReceived(const Metadata& metadata) = 0;
+};
+
+/** Definition of ISnapshotCallback
+ */
+class ISnapshotCallback {
+ public:
+  /**
+   * @brief snapshot taken callback
+   *
+   * @param channel channel name
+   * @param uid user id
+   * @param filePath image is saveed file path
+   * @param width image width
+   * @param height image height
+   * @param errCode 0 is ok negative is error
+   */
+  virtual void onSnapshotTaken(const char* channel, uid_t uid, const char* filePath, int width, int height, int errCode) = 0;
+  virtual ~ISnapshotCallback(){};
 };
 
 /** Encryption mode.
@@ -8312,7 +8390,7 @@ class IRtcEngine {
    */
   virtual int enableLoopbackRecording(bool enabled, const char* deviceName = NULL) = 0;
 
-#if (defined(__APPLE__) && TARGET_OS_MAC && !TARGET_OS_IPHONE)
+#if ((defined(__APPLE__) && TARGET_OS_MAC && !TARGET_OS_IPHONE)) || defined(_WIN32)
   /** Shares the whole or part of a screen by specifying the display ID.
    *
    * @note
@@ -9272,6 +9350,33 @@ class IRtcEngine {
    - < 0: Failure
    */
   virtual int setLocalAccessPoint(const char** ips, int ipSize, const char* domain) = 0;
+
+  /**
+   * @brief save current time video frame to jpeg and write as a jpeg
+   *
+   * @param channel channel name
+   * @param uid user identify local camera uid set as 0,
+   * @param filePath path to save jpeg
+   * @param callback callback for success or failure
+   * @return int
+   * - 0 : Success.
+   * - <0 : Failure.
+   */
+  virtual int takeSnapshot(const char* channel, uid_t uid, const char* filePath, ISnapshotCallback* callback) { return 0; }
+
+  /** Enable the content inspect.
+
+    @param enabled Sets whether or not to enable content inspect:
+  - true: enables content inspect.
+  - false: disables content inspect.
+
+    @return
+    - 0: Success.
+    - < 0: Failure.
+    */
+  virtual int enableContentInspect(bool enabled, const ContentInspectConfig& config) = 0;
+  virtual int setCameraTorchOn(bool on) = 0;
+  virtual bool isCameraTorchSupported() = 0;
 };
 
 class IRtcEngineParameter {
@@ -9909,7 +10014,6 @@ class RtcEngineParameters {
   int enableWebSdkInteroperability(bool enabled) {  // enable interoperability with zero-plugin web sdk
     return setParameters("{\"rtc.video.web_h264_interop_enable\":%s,\"che.video.web_h264_interop_enable\":%s}", enabled ? "true" : "false", enabled ? "true" : "false");
   }
-
   // only for live broadcast
 
   int setVideoQualityParameters(bool preferFrameRateOverImageQuality) { return setParameters("{\"rtc.video.prefer_frame_rate\":%s,\"che.video.prefer_frame_rate\":%s}", preferFrameRateOverImageQuality ? "true" : "false", preferFrameRateOverImageQuality ? "true" : "false"); }
@@ -9950,6 +10054,9 @@ class RtcEngineParameters {
 
   int setInEarMonitoringVolume(int volume) { return m_parameter ? m_parameter->setInt("che.audio.headset.monitoring.parameter", volume) : -ERR_NOT_INITIALIZED; }
 
+  // int enableContentInspect(bool enabled) {
+  //     return m_parameter ? m_parameter->setBool("rtc.video.enable_content_inspect", enabled) : -ERR_NOT_INITIALIZED;
+  // }
  protected:
   AParameter& parameter() { return m_parameter; }
   int setParameters(const char* format, ...) {
